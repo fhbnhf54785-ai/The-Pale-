@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>灰域 · 伊芙</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html { height:100%; background:#08080a; }
+  body {
+    height:100%; font-family:"Songti SC","Noto Serif SC","SimSun",serif;
+    color:#cfccd6; overflow:hidden; transition:background 1.6s ease;
+    -webkit-tap-highlight-color:transparent;
+  }
+  body.dream { background:linear-gradient(160deg,#15161d,#0b0c10); }
+  body.real  { background:linear-gradient(160deg,#1b1713,#0d0b09); }
+  body.fire  { background:linear-gradient(160deg,#241110,#0d0706); }
+  body.void  { background:#060609; }
+
+  #title {
+    position:fixed; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; background:#08080b;
+    z-index:100; transition:opacity 1.2s ease; padding:20px;
+  }
+  #title.hidden { opacity:0; pointer-events:none; }
+  #title h1 {
+    font-size:44px; letter-spacing:14px; font-weight:normal;
+    color:#d8d5e0; text-indent:14px; margin-bottom:6px;
+  }
+  #title .sub {
+    font-size:10px; letter-spacing:5px; color:#4a4854;
+    text-transform:uppercase; margin-bottom:48px;
+  }
+  #title .quote {
+    font-size:13px; color:#6a6778; letter-spacing:1px;
+    line-height:2.1; text-align:center;
+  }
+  #start-btn {
+    margin-top:52px; background:transparent; border:1px solid #3a3846;
+    color:#9a97a8; font-family:inherit; font-size:14px;
+    padding:13px 52px; letter-spacing:7px; text-indent:7px;
+    cursor:pointer; transition:all .45s;
+  }
+  #start-btn:hover { border-color:#6a6580; color:#e6e2ef; }
+
+  #game {
+    display:none; flex-direction:column; height:100%;
+    max-width:700px; margin:0 auto; padding:18px 22px 16px;
+  }
+  #game.active { display:flex; }
+
+  #hud {
+    display:flex; align-items:center; gap:18px; font-size:10px;
+    color:#4e4c58; letter-spacing:1.2px; padding-bottom:8px;
+    flex-shrink:0; flex-wrap:wrap;
+  }
+  .hud-item { display:flex; align-items:center; gap:7px; }
+  .bar { width:70px; height:2px; background:#22212a; overflow:hidden; }
+  #soul-fill {
+    height:100%; background:#7c7898; width:100%;
+    transition:width 1.2s ease, background 1.2s ease;
+  }
+  #mem-dots { display:flex; gap:5px; align-items:center; }
+  .mem-dot {
+    width:4px; height:4px; border-radius:50%; background:#8a85a8;
+    animation:dotIn .5s ease;
+  }
+  @keyframes dotIn { from{transform:scale(0);opacity:0;} to{transform:scale(1);opacity:1;} }
+
+  #text-area {
+    flex:1; overflow-y:auto; padding:26px 4px 22px 0;
+    scrollbar-width:thin; scrollbar-color:#2a2933 transparent;
+  }
+  #text-area::-webkit-scrollbar { width:3px; }
+  #text-area::-webkit-scrollbar-thumb { background:#2a2933; }
+  #text-area p {
+    font-size:16px; line-height:2.05; margin-bottom:1.1em;
+    color:#c9c6d1; letter-spacing:.4px;
+    opacity:0; animation:fadeUp .9s ease forwards;
+  }
+  #text-area p:first-child { font-size:17px; color:#dedae6; }
+  @keyframes fadeUp {
+    from{opacity:0;transform:translateY(10px);}
+    to{opacity:1;transform:translateY(0);}
+  }
+
+  #choices {
+    display:flex; flex-direction:column; gap:9px;
+    padding-top:12px; flex-shrink:0;
+  }
+  .choice {
+    background:transparent; border:1px solid #302f3a; color:#b5b2c0;
+    font-family:inherit; font-size:14px; padding:12px 18px;
+    text-align:left; cursor:pointer; border-radius:2px;
+    transition:all .35s ease; letter-spacing:.4px; line-height:1.55;
+  }
+  .choice:hover, .choice:active {
+    border-color:#6a6580; color:#e6e2ef;
+    background:rgba(120,115,150,.07); padding-left:24px;
+  }
+</style>
+</head>
+<body class="dream">
+
+<div id="title">
+  <h1>灰域</h1>
+  <div class="sub">The Grey Interval</div>
+  <div class="quote">
+    「不要让我就这样彻底消散。」<br>
+    「如果可以重来，不必承受这般含冤而死的结局。」
+  </div>
+  <button id="start-btn">开 始</button>
+</div>
+
+<div id="game">
+  <div id="hud">
+    <div class="hud-item">
+      <span>灵魂</span>
+      <div class="bar"><div id="soul-fill"></div></div>
+    </div>
+    <div class="hud-item">
+      <span>记忆碎片</span>
+      <span id="mem-dots"></span>
+    </div>
+  </div>
+  <main id="text-area"></main>
+  <div id="choices"></div>
+</div>
+
+<script>
+let state = { soul:100, memory:0 };
+
+const GAME = {
+  start: {
+    bg:'dream',
+    text:`梦是有重量的。
+
+十五岁那年的某个夜晚，伊芙第一次知道了这件事。
+
+入睡前她还抱着枕头，数着窗外的车声。下一刻，地板消失了。
+
+不是坠落——更像是浮起。四周灰濛濛的，没有天，没有地，也看不见月亮。只有无数东西静静地悬在虚空里：书、梳子、怀表、半只缺口的瓷杯。
+
+最靠近她手边的，是一把维多利亚时期的银梳。梳齿上雕着一朵小小的玫瑰。`,
+    choices:[
+      {label:'握住那把银梳。', next:'p1_arrive'},
+      {label:'不对劲。试着醒过来。', next:'cant_wake'}
+    ]
+  },
+  cant_wake: {
+    bg:'dream',
+    text:`她试着睁眼。
+
+眼皮动了动，什么也没有发生。这片灰色像水一样裹着她，越是挣扎，就越是往下沉。
+
+她心里开始发慌。手胡乱挥了一下——
+
+指尖擦过那把银梳。`,
+    next:'p1_arrive'
+  },
+  p1_arrive: {
+    bg:'real',
+    text:`灰域一瞬间褪干净了。
+
+不是消失——是被什么东西顶开了。她闻到了煤油、湿羊毛和壁炉里冷掉的烟味。手指变得粗糙，指节上长着冻疮。低头，身上是一件洗得发白的女仆裙。
+
+她想开口说话，喉咙里发出的却是一个陌生女孩的声音。
+
+从这一刻起，她不再是伊芙了。她是普丽姆罗丝。`,
+    next:'p1_life'
+  },
+  p1_life: {
+    bg:'real',
+    text:`日子过得比她想象中长。
+
+天不亮就起来擦地板，手指冻得通红。女主人脾气坏，男主人不管事。有一个叫玛丽的女仆和她睡一间阁楼，夜里总会分她半个硬面包。
+
+这些不是她记得的——是她此刻正在过的。
+
+她几乎要以为，自己本来就是普丽姆罗丝了。`,
+    next:'p1_turn'
+  },
+  p1_turn: {
+    bg:'real',
+    text:`转折来得像一场雨。
+
+邻家的孩子病倒了。高热，抽搐。普丽姆罗丝熬了一锅草药汤送过去——她从前在乡下见过祖母这样做。
+
+孩子还是死了。
+
+孩子的父亲红着眼睛找上门来。第二天，镇子里开始有人低声议论：那个女仆，晚上会对着月亮说话。
+
+三天后，两个男人把她从阁楼上拖了下来。`,
+    next:'p1_trial'
+  },
+  p1_trial: {
+    bg:'real',
+    text:`地方法官坐在长桌后面，表情像是来处理一桩牲口纠纷。
+
+“有人说你能和不该打交道的东西说话。”
+
+伊芙在普丽姆罗丝的皮囊里发抖。她想喊，想解释那锅汤只是草药。但这只是她借来的一生。她推不动它。`,
+    choices:[
+      {label:'喊冤。', next:'p1_verdict'},
+      {label:'沉默。', next:'p1_verdict'},
+      {label:'说出实情。', next:'p1_verdict'}
+    ]
+  },
+  p1_verdict: {
+    bg:'real',
+    text:`她试过解释。
+
+草药只是草药。孩子死的时候她不在场。她甚至不知道那个男人为什么恨她。
+
+没有人听。
+
+在那个年代，一个没有身份的女仆，和一块被风吹起来的破布没什么区别。`,
+    next:'p1_fire'
+  },
+  p1_fire: {
+    bg:'fire',
+    text:`火刑那天是阴天。
+
+柴堆很高。围观的人比她想象中多，也比她想象中安静。
+
+火苗舔到裙角的时候，普丽姆罗丝听见自己的声音从喉咙深处撕出来——
+
+“不要让我就这样彻底消散——”
+
+“如果可以重来——”
+
+“不必承受这般含冤而死的结局——”`,
+    next:'p1_end'
+  },
+  p1_end: {
+    bg:'dream',
+    text:`灰色。
+
+她重新落回那片灰域里，灵魂像被拧干了的布口袋。然后她醒了。
+
+枕头湿了一片。窗外天刚亮。妈妈在厨房里敲鸡蛋。
+
+她不知道自己梦见了什么。只记得——很累。有一种说不出的、堵在胸口的不甘。`,
+    next:'real_1'
+  },
+  real_1: {
+    bg:'real',
+    text:`日子照常过。
+
+她开始害怕睡觉。不是怕做噩梦——她根本不记得梦的内容。只是每次醒来，那种疲惫都更深一层。
+
+妈妈带她去看了脑科医生。医生看了片子，皱起眉：“你负责记忆的那部分脑皮层，比普通人活跃很多。但……没有问题。你的身体没有问题。”
+
+伊芙点了点头，没有告诉他——每晚闭上眼睛之后，她都会去一个没有日月的灰色地方。`,
+    next:'dream_2'
+  },
+  dream_2: {
+    bg:'dream',
+    text:`那天晚上，她又回到了灰域。
+
+银梳还在那里。像是一直在等她。
+
+她想不起来上次碰过它，但她的身体记得。她的手在发抖——像一根很细的线，从胸口被拉出去，拴在那把梳子上。`,
+    choices:[
+      {label:'握住它。', next:'p2_arrive'},
+      {label:'这次离它远一点。', next:'d2_avoid'}
+    ]
+  },
+  d2_avoid: {
+    bg:'dream',
+    text:`她转身往灰色深处走。
+
+走了很久。她碰到了一只怀表。怀表是暖的，一碰就把她吞了进去。
+
+那是一个邮差的一生。四十年，风里来雨里去，最后死在一张没铺好的床上，身边没有一个人。
+
+醒来时，她的枕头又湿了一块。她愣了很久，还是不知道自己为什么难过。
+
+第二天夜里，她又入梦了。银梳还在原地。这一次她没有躲。`,
+    act:s=>{s.soul-=8;},
+    next:'p2_arrive'
+  },
+  p2_arrive: {
+    bg:'real',
+    text:`又是那间阁楼。
+
+煤油灯。湿羊毛。还有玛丽睡在对面床上轻轻的鼾声。
+
+伊芙——普丽姆罗丝——躺在那张窄床上，盯着天花板。
+
+这一次，有什么东西不一样了。灶台的位置。走廊尽头那扇窗的角度。女主人皱眉时嘴角朝下的弧度。全都像在什么地方见过。
+
+不是记得。更像是——走进一间你住过很多年的屋子，闭着眼睛也知道该往哪边走。`,
+    next:'p2_turn'
+  },
+  p2_turn: {
+    bg:'real',
+    text:`孩子的病又来了。
+
+一样的雨。一样的草药锅。一样的死讯。男孩的父亲红着眼睛站在门口，身后跟着两个提灯笼的男人。
+
+普丽姆罗丝站在阁楼上。玛丽攥着她的手腕，声音压得很低：“从后窗走。现在。”`,
+    choices:[
+      {label:'说出那个男人的名字。当着所有人的面。', next:'p2_confront'},
+      {label:'跟着玛丽，从后窗走。', next:'p2_flee'},
+      {label:'太累了。什么也不做，等他们上楼。', next:'p2_silent'}
+    ]
+  },
+  p2_confront: {
+    bg:'real',
+    text:`她的声音比她以为的要稳。
+
+“药是我熬的。但孩子不是死在我手上。是他自己不肯请医生。”
+
+满屋子安静。那个男人涨红了脸，扑上来。围观的人没有动。
+
+她后来还是被带走了。不是因为草药，是因为那个男人的表哥在镇公所里坐着。
+
+这一次没有火刑柱。他们在牢里关了她四十天，用刑逼她认罪。她始终没有认。第四十一天，她被绞死在镇子外面的橡树上。
+
+她死的时候，人群里有一个年轻贵族，脸色很难看。后来伊芙在梦里又见过他一次——他成了几十年后一份改革法案的推手之一。`,
+    act:s=>{s.soul-=25; s.memory+=1;},
+    next:'wake_2'
+  },
+  p2_flee: {
+    bg:'real',
+    text:`她从后窗跳下去，脚踝扭了一下。玛丽拉着她跑。
+
+雨很大，森林很黑。她们在一个废弃的猎棚里缩了一整夜。后来躲进了更深的林子。
+
+冬天来的时候，玛丽开始咳嗽。一天比一天重。普丽姆罗丝把面包留给她，玛丽不肯吃，两个人推来推去，最后一起哭了。
+
+玛丽走的时候，手还攥着普丽姆罗丝的袖子。
+
+她一个人活了下来，活到很老。每个冬天，她都会想起玛丽替她挡下那个男人时说的那句话。`,
+    act:s=>{s.soul-=25; s.memory+=1;},
+    next:'wake_2'
+  },
+  p2_silent: {
+    bg:'real',
+    text:`她站在阁楼上，听着楼梯上传来的脚步声。
+
+很奇怪，她只觉得累。那种深入骨髓的累——不是这个身体的累，是更深处的、她自己的。
+
+两个男人把她带走了。和上一次一样。火刑柱，一样的阴天。
+
+火焰里，普丽姆罗丝闭上眼睛。伊芙也跟着闭上了眼睛。
+
+什么都没改变。她不知道自己为什么要说“又一次”。`,
+    act:s=>{s.soul-=20; s.memory+=1;},
+    next:'wake_2'
+  },
+  wake_2: {
+    bg:'real',
+    text:`她是被自己的心跳吵醒的。
+
+枕头上的头发比昨天多。她伸手拨开，看见其中一根——
+
+灰白色。细得像蛛丝，从发根白到发梢。
+
+她才十五岁。`,
+    next:'real_2'
+  },
+  real_2: {
+    bg:'real',
+    text:`她把那根白发藏了起来。妈妈没有看见。
+
+但她知道自己在变。早上梳头的时候，手会抖。走到学校要歇两次。镜子里的脸还是十五岁，眼睛却像三十岁。
+
+那天放学，她在图书馆里翻了一下午。「灵魂振动」「光环」「频率」——只翻出几篇冷门论文，和一本没有人借过的旧书。`,
+    next:'linrin'
+  },
+  linrin: {
+    bg:'real',
+    text:`那本旧书的借阅卡上只有一个名字：林凛。
+
+她在图书馆三层靠窗的位置找到了那个人——比想象中年轻，桌上摊着好几本笔记，眼镜滑到鼻尖上。
+
+林凛抬头看了她一眼。然后愣住了。
+
+“……你的光环。”他说，“不对。”
+
+伊芙坐了下来。林凛说他能看见别人的光环，天生的。这让他被学校请去看过三次心理医生。
+
+“普通人的光环是从身体里长出来的，边缘毛毛的，像水母。”他盯着她看了很久，“你的在出血。而且是往外面长。”
+
+他从手机里翻出一张照片，推到她面前。一把维多利亚时期的银梳，梳齿上雕着一朵小小的玫瑰。
+
+“三年前我在旧物拍卖会上见过这个。它上面的频率很吵。像有人在里面喊。”
+
+伊芙盯着那张照片。她认得它。她不记得在哪里见过，但她认得。那一刻，她的后脑勺像被人用针扎了一下。`,
+    act:s=>{s.memory+=1;},
+    next:'dream_3'
+  },
+  dream_3: {
+    bg:'dream',
+    text:`那天夜里，她几乎是主动滑进灰域的。
+
+银梳还在原地。这一次她没有伸手，只是看着它。
+
+然后——她听见了。
+
+不是声音。更像是振动。那里面有人在喊。很远很远，隔着一百年。
+
+“不要让我就这样彻底消散——”
+
+“如果可以重来——”
+
+“不必承受这般含冤而死的结局——”`,
+    next:'memory_break'
+  },
+  memory_break: {
+    bg:'void',
+    text:`她想起来了。
+
+不是全部，是很多碎片，一片一片浮上来。火刑柱上的烟。玛丽的手。阁楼的鼾声。
+
+还有——那个在火焰里许愿的女孩。
+
+是她自己。`,
+    act:s=>{s.memory+=2;},
+    next:'reveal'
+  },
+  reveal: {
+    bg:'void',
+    text:`那一年，普丽姆罗丝在火刑柱上许了一个愿。
+
+愿望很简单：让我不要就这么没了。让我重来一次，别再死得这么冤。
+
+那个愿太强了。它被锁进了那把银梳的频率里，顺着一条很长的时间，等着。等到十五岁的伊芙出现。
+
+她的光环不是天生的。是过去的自己求来的。`,
+    next:'reveal_2'
+  },
+  reveal_2: {
+    bg:'void',
+    text:`而代价，也是那时候一起许下的。
+
+每一次她回到过去、改掉一个结局，她的灵魂就会被那道频率撕开一点。白发是裂口，疲惫是裂口。
+
+她以为自己在救普丽姆罗丝。其实她只是在一寸一寸地，把自己拆掉。
+
+灰域里很安静。银梳静静浮在那里。`,
+    next:'final'
+  },
+  final: {
+    bg:'void',
+    text:`林凛的话在她脑子里响：“你的在出血。而且是往外面长。”
+
+她突然明白了——如果继续下去，她会死。不是睡着的那种死。是真的，灵魂被磨没了，连转世都不会有的那种。
+
+她也可以现在醒来。回到床上，回到妈妈身边，过一个普通人的一生。
+
+可是普丽姆罗丝还在那里。在火里。`,
+    choices:[
+      {label:'再握住它。我要把那个结局改好。', next:'end_loop'},
+      {label:'不碰它。我要醒来。', next:'end_wake'},
+      {label:'握住它。但这一次，不是为了改。', next:'end_accept'},
+      {label:'【执念】疯狂修改时间线，我要救下所有人！', next:'end_collapse'},
+      {label:'【释然】找到一条生路，然后彻底斩断它。', next:'end_short_he'}
+    ]
+  },
+  end_loop: {
+    bg:'dream',
+    text:`她握住了银梳。
+
+灰域又一次褪成阁楼的颜色。煤油灯。湿羊毛。玛丽在对面床上翻身。
+
+这一次，她知道自己要做什么了。她要避开雨夜，避开草药，避开那个男孩，避开整座镇子。她要活下来，活得好好的，活成一个完美的结局。
+
+然后她醒来。白发又多了几根。
+
+那天夜里她又入梦，又握住它。再下一次，还是。
+
+她开始分不清哪一次是第几次。阁楼、森林、牢房、火——所有的结局在她脑子里叠在一起。她越来越累，越来越老，镜子里的自己越来越陌生。
+
+某一天，她躺进那张窄床之后，就再也没有醒来。
+
+她终于得到了完美结局——在梦里，永远地。`,
+    ending:'BE · 沉溺'
+  },
+  end_wake: {
+    bg:'real',
+    text:`她松开了手。
+
+灰域在她面前缓缓合上。银梳浮在那里，越来越小，最后变成一个看不清的亮点。
+
+她醒了。枕头是干的。
+
+日子照常过。梳头的时候手不抖了，走路不用歇了。镜子里的脸慢慢变回十五岁。
+
+只是偶尔，半夜醒来，她会觉得胸口缺了一块。像是有一句话，她本来要说，却忘了。
+
+三年后的一个冬天，她死于一场很普通的病。医生说是心脏的问题，先天的，没办法。
+
+她走的时候很安静。她自己也不知道为什么。
+
+那根最早的白发，一直没人发现。`,
+    ending:'BE · 无因'
+  },
+  end_accept: {
+    bg:'void',
+    text:`她握住了银梳。
+
+但她没有闭眼。
+
+她站在灰域里，看着那把梳子，看着里面那道还在喊的声音。
+
+“我知道你在这里。”她说，“我知道你当年喊了什么。”
+
+那道振动停了一下。
+
+“我不改了。”她说，“我改不动。每一次改，都是在拆我自己。”
+
+“但我不走了。我听见了。你喊的那句话，我听见了。”
+
+灰域开始发亮。不是变白——是像水一样，一层一层地透过来。银梳在她手心里裂开，里面有一道光顺着她的手臂往上爬。
+
+火刑柱、阁楼、森林、牢房——所有的普丽姆罗丝同时抬起头。
+
+然后，她醒了。
+
+现实里，她坐起来。窗外天刚亮。妈妈在厨房敲鸡蛋。
+
+她伸手摸了摸头发。还是黑的。
+
+但她知道，从今天起，那些记忆不会再被抹掉了。她们都在她身体里。普丽姆罗丝、玛丽、那个邮差。所有她替他们活过的一生。
+
+她还活着。她们也还活着。
+
+这样就好。`,
+    ending:'OE · 和解'
+  },
+  end_short_he: {
+    bg:'real',
+    text:`这一次，伊芙在无数分支中，终于为 Primrose 蹚出了一条生路。
+
+也许是假死躲进森林，靠着女仆玛丽的庇护熬过寒冬；也许是避开了那场审判，在一个无人认识的镇子改名换姓。这条时间线终于稳定下来，莫比乌斯环不再转动，因果闭环。
+
+站在灰域里，伊芙看着那把银梳。她知道，只要自己轻轻一挥手，就能彻底切断灵魂与它的频率链接，封印这份沾满血泪的特殊光环。
+
+失去了入梦回溯的天赋，灰域将永远对她关上大门。她的灵魂不再被撕裂，早衰的白发也停止了蔓延。
+
+她醒来，阳光洒在枕头上。她不再是任何人的救世主，也不用再背负那些厚重的苦难。
+
+她只是伊芙。一个拥有普通人余生的伊芙。这就足够了。`,
+    ending:'HE · 斩断共振'
+  },
+  end_collapse: {
+    bg:'void',
+    text:`贪念和执念，最终压垮了时间的脊梁。
+
+为了寻找那个“最完美”的结局，伊芙在灰域里近乎疯狂地改动多条时间线。频繁扰动的频率终于达到了极限——银梳承载的时间锚点，碎了。
+
+就像一块无法承受过多重量的玻璃，瞬间崩解。
+
+Primrose 所有的时间分支在那一刻全部溶解。而伊芙的灵魂，本就与这份祈愿死死绑定。过去的虚影和现在的实体，在频率的乱流中一同被撕碎。
+
+过去的 Primrose 不复存在，现在的伊芙也彻底消失，仿佛在这世界上从来没有诞生过。
+
+这是 Primrose 最初最恐惧的下场——彻底消散，不留一丝痕迹。
+
+灰域里恢复了死寂，连那把银梳，也化作了虚无。`,
+    ending:'BE · 彻底消散'
+  }
+};
+
+const $ = id => document.getElementById(id);
+let current = null;
+
+function renderScene(id){
+  const sc = GAME[id];
+  if(!sc) return;
+  current = id;
+
+  if(sc.act) sc.act(state);
+  state.soul = Math.max(0, Math.min(100, state.soul));
+
+  document.body.className = sc.bg || 'dream';
+
+  $('soul-fill').style.width = state.soul + '%';
+  $('soul-fill').style.background =
+    state.soul > 60 ? '#7c7898' :
+    state.soul > 30 ? '#9a8a7a' : '#a07070';
+  const dots = $('mem-dots');
+  dots.innerHTML = '';
+  for(let i=0;i<Math.min(state.memory,8);i++){
+    const d = document.createElement('span');
+    d.className = 'mem-dot';
+    dots.appendChild(d);
+  }
+
+  const ta = $('text-area');
+  ta.innerHTML = '';
+  sc.text.split('\n\n').forEach((para, i)=>{
+    const p = document.createElement('p');
+    p.textContent = para;
+    p.style.animationDelay = (i*0.12)+'s';
+    ta.appendChild(p);
+  });
+  ta.scrollTop = 0;
+
+  const ch = $('choices');
+  ch.innerHTML = '';
+
+  if(sc.ending){
+    const p = document.createElement('p');
+    p.textContent = '—— ' + sc.ending + ' ——';
+    p.style.textAlign = 'center';
+    p.style.color = '#6a6580';
+    p.style.marginTop = '20px';
+    p.style.animationDelay = '.6s';
+    ta.appendChild(p);
+
+    const btn = document.createElement('button');
+    btn.className = 'choice';
+    btn.textContent = '回到标题';
+    btn.onclick = restart;
+    ch.appendChild(btn);
+    return;
+  }
+
+  if(sc.choices){
+    sc.choices.forEach(c=>{
+      const btn = document.createElement('button');
+      btn.className = 'choice';
+      btn.textContent = c.label;
+      btn.onclick = ()=> renderScene(c.next);
+      ch.appendChild(btn);
+    });
+  } else if(sc.next){
+    const btn = document.createElement('button');
+    btn.className = 'choice';
+    btn.textContent = '继续';
+    btn.onclick = ()=> renderScene(sc.next);
+    ch.appendChild(btn);
+  }
+}
+
+function restart(){
+  state = { soul:100, memory:0 };
+  $('game').classList.remove('active');
+  $('title').classList.remove('hidden');
+  $('text-area').innerHTML = '';
+  $('choices').innerHTML = '';
+  document.body.className = 'dream';
+}
+
+$('start-btn').addEventListener('click', ()=>{
+  $('title').classList.add('hidden');
+  setTimeout(()=>{
+    $('game').classList.add('active');
+    renderScene('start');
+  }, 400);
+});
+</script>
+</body>
+</html>
